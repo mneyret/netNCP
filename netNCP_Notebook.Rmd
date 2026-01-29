@@ -1,5 +1,6 @@
 ---
-title: "NetNCP tutorial"
+title: "Quantifying the impact of social and ecosystem changes through expanded ecosystem multifunctionality metrics -
+Tutorial for the NetNCP approach"
 output:
   html_document:
     toc: yes
@@ -14,6 +15,8 @@ output:
     code_folding: hide
     df_print: paged
 ---
+
+# Introduction
 
 This is a tutorial for the netNCP approach, presenting the main concepts and calculation steps based on a fictional, simple case study. 
 It is meant as a demonstration for the paper by Neyret et al. Quantifying the impacts of socio-ecosystem change through expanded ecosystem multifunctionality (2026). Advances in Ecological Research.
@@ -455,16 +458,9 @@ ggnetNCP = ggplot(Supply_access_priority[Scenarios != 0,], aes(x = Group, y = We
     legend.position="bottom",
     axis.line = element_line(colour = "black", linewidth = 0.5),
     panel.spacing = unit(1.5, "lines"),
-   # strip.text.x = element_text(size = 10, color = NA),
     strip.background = element_rect(colour="NA", fill="NA")) +
      geom_errorbar(data = netNCP_bygroup[Scenarios != 0, ], aes(x = Group, y=netNCP,ymin=netNCP,ymax=netNCP), color = 'darkred', size = 0.4 , inherit.aes = FALSE) +
-  # geom_hline(data = netNCP_overall, aes(yintercept = netNCP), color = 'darkred', size = 0.7, linetype = "longdash") +
   geom_hline(aes(yintercept = 0), color = 'black', size = 0.3)
-
-
-ggsave(plot = ggnetNCP0+ ggtitle('') + theme(legend.position = 'none'), paste( '/Users/neyretma/Documents/Senckenberg/Framework/AER/ggnetNCP0.png', sep = ''), width = 1, height = 1.5)
-
-ggsave(plot = ggnetNCP+ ggtitle('') + theme(legend.position = 'none'), paste( '/Users/neyretma/Documents/Senckenberg/Framework/AER/ggnetNCP.png', sep = ''), width = 6, height = 1.5)
 
 ggnetNCP
 ```
