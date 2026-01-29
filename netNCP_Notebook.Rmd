@@ -1,25 +1,29 @@
 ---
-title: "Quantifying the impact of social and ecosystem changes through expanded ecosystem multifunctionality metrics -
-Tutorial for the NetNCP approach"
+title: "Quantifying the impacts of socio-ecosystem change through expanded ecosystem multifunctionality - netNCP tutorial"
+author: "Margot Neyret"
+date: "January 2026"
 output:
   html_document:
-    toc: yes
+    toc: true
     df_print: paged
   pdf_document:
+    toc: true
+    number_sections: true
     highlight: tango
-    keep_tex: yes
-    number_sections: yes
-    toc: yes
+    keep_tex: true
   html_notebook:
-    toc: yes
+    toc: true
     code_folding: hide
     df_print: paged
 ---
 
 # Introduction
 
-This is a tutorial for the netNCP approach, presenting the main concepts and calculation steps based on a fictional, simple case study. 
-It is meant as a demonstration for the paper by Neyret et al. Quantifying the impacts of socio-ecosystem change through expanded ecosystem multifunctionality (2026). Advances in Ecological Research.
+This tutorial introduces the **netNCP approach** through a simple, fictional case study.  
+It illustrates the main concepts and calculation steps used to quantify how changes in social
+and ecological systems affect ecosystem multifunctionality.
+
+The tutorial accompanies the paper by **Neyret et al. (2026)**, *Quantifying the impacts of socio-ecosystem change through expanded ecosystem multifunctionality*, published in *Advances in Ecological Research*.
 
 ```{r Setup, message=FALSE}
 library(data.table)
@@ -29,59 +33,97 @@ library(cowplot)
 library(colorspace)
 library(terra)
 library(tidyterra)
-library(ggradar)
-knitr::opts_chunk$set(tidy = 'formatR', collapse = TRUE, warning = FALSE, message = FALSE)
+
+
+knitr::opts_chunk$set(
+collapse = TRUE,
+warning = FALSE,
+message = FALSE
+)
 ```
 
-# Setting up the case study and preliminary analyses
+# Case study and preliminary analyses
 
-The fictional area is a composed of 54% intensive pasture and 36% woodland, that is partially used as extensive sylvopasture. The remaining 10% is a swamp. Three stakeholder groups are considered: locals, farmers and foresters. Half the area is privately owned (red rectangle below), potentially restricting access to some stakeholder groups.
+We consider a fictional landscape composed of:
+- **54% intensive pasture**
+- **36% woodland**, partly used as extensive silvopasture
+- **10% swamp**
+
+Three stakeholder groups are represented:
+**farmers**, **foresters**, and **local residents**.
+
+Half of the landscape (shown as a red rectangle below) is privately owned, which may restrict access to some NCP.
+
 
 ```{r Fictional landscape}
-landscape = matrix(c(rep(c('Pasture','Woodland'), times = c(6,4)),
-                     rep(c('Pasture','Woodland'), times = c(6,4)),
-                     rep(c('Pasture','Swamp','Woodland'), times = c(3,5,2)),
-                     rep(c('Pasture','Swamp','Woodland'), times = c(3,5,2)),
-                     rep(c('Pasture','Woodland'), times = c(6,4)),
-                     rep(c('Pasture','Woodland'), times = c(6,4)),
-                     rep(c('Pasture','Woodland'), times = c(6,4)),
-                     rep(c('Pasture','Woodland'), times = c(6,4)),
-                     rep(c('Pasture','Woodland'), times = c(6,4)),
-                     rep(c('Pasture','Woodland'), times = c(6,4))), nrow = 10, byrow = T)
+landscape <- matrix(
+c(rep(c('Pasture','Woodland'), times = c(6,4)),
+rep(c('Pasture','Woodland'), times = c(6,4)),
+rep(c('Pasture','Swamp','Woodland'), times = c(3,5,2)),
+rep(c('Pasture','Swamp','Woodland'), times = c(3,5,2)),
+rep(c('Pasture','Woodland'), times = c(6,4)),
+rep(c('Pasture','Woodland'), times = c(6,4)),
+rep(c('Pasture','Woodland'), times = c(6,4)),
+rep(c('Pasture','Woodland'), times = c(6,4)),
+rep(c('Pasture','Woodland'), times = c(6,4)),
+rep(c('Pasture','Woodland'), times = c(6,4))),
+nrow = 10, byrow = TRUE
+)
 
-homes = as.data.table(list(Stakeholder_home = c('Farmer', 'Forester', 'Local'),
-                                x = c(2, 4, 9),
-                                y = c(1, 9, 3)))
 
-ggplot() + theme_nothing() + theme(legend.position = "right") +
-  geom_spatraster(data = rast(landscape), aes(fill = lyr.1 )) +
-  scale_fill_manual(breaks = c('Pasture', 'Woodland','Swamp'), values = c('#CCFF99', 'olivedrab4', 'aquamarine3'), name = "Land use")+
-  geom_rect(aes(xmin = 0, xmax = 10, ymin = 5, ymax = 10), color = 'darkred', fill = NA, linewidth = 3)+ coord_fixed() +
-  geom_point(data = homes, aes(x = x, y = y, shape = Stakeholder_home), size = 4)
+homes <- data.table(
+Group = c('Farmers', 'Foresters', 'Locals'),
+x = c(2, 4, 9),
+y = c(1, 9, 3)
+)
 
+
+ggplot() +
+theme_void() +
+geom_spatraster(data = rast(landscape), aes(fill = lyr.1)) +
+scale_fill_manual(
+values = c(Pasture = '#CCFF99', Woodland = 'olivedrab4', Swamp = 'aquamarine3'),
+name = 'Land use'
+) + geom_rect(aes(xmin = 0, xmax = 10, ymin = 5, ymax = 10), color = 'darkred', fill = NA, linewidth = 3) +
+geom_point(data = homes, aes(x, y, shape = Group), size = 3) +
+coord_fixed()
 ```
 
-### NCP indicators and supply
 
-We focus on four main NCP: climate change mitigation (estimated from carbon sequestration rates in soil and vegetation), livestock production (annual fodder productivity), aesthetic value (estimated from flower cover and vegetation structural diversity), and health risks (disease vectors). 
+## NCP indicators and supply
 
-For the sake of this example, we assume that on average pastures provide higher livestock production, but have low values for most aesthetic value indicators and similar sequestration rates than woodland. The swamp has a particularly high abundance of disease vectors, and has been disturbed resulting in carbon emissions (negative sequestration). 
+We focus on four nature’s contributions to people (NCP):
+
+- **Climate regulation**, estimated from soil and vegetation carbon sequestration  
+- **Livestock production**, measured as annual fodder productivity  
+- **Aesthetic value**, derived from flower cover and vegetation diversity  
+- **Health risk**, represented by the abundance of disease vectors  
+
+For this example, we assume that:
+- Pastures maximize livestock production but score low on aesthetics  
+- Woodlands have high aesthetic value and similar sequestration rates as pastures
+- Swamps have high disease risk and negative carbon balance due to disturbance
 
 ```{r Setup supply data}
-Supply_indicators = as.data.table(list(LU_type = c('Pasture', 'Woodland', 'Swamp'),
+Supply_indicators = data.table(LU_type = c('Pasture', 'Woodland', 'Swamp'),
                                 Climate_seq_soil = c(0.3, 0.4, -1), # C sequestration rates in soil
                                 Climate_seq_veg = c(2, 3, 0),  # C sequestration rates in vegetation
                                 Livestock_prod = c(13, 7, 0),  # Fodder productivity
                                 Aesthetic_flower = c(20, 40, 50),   # % of flower cover
                                 Aesthetic_diversity = c(1, 6, 7),  # # of species present
-                                Health_risk = c(0, 0, 20))) # Abundance of disease vectors
+                                Health_risk = c(0, 0, 20)) # Abundance of disease vectors
 
 kable(Supply_indicators, caption = 'Average indicator values per forest type')
 ```
 
 ### NCP priorities
 
-All stakeholders groups were asked to distribute a maximum of 10 points to each NCP, representing their priority for the supply (or avoidance thereof) of the NCP. In practice, interviews should be conducted across multiple respondents; here only the average by group is shown.
+## Stakeholder priorities
+
+Stakeholders allocated up to **10 points** across the four NCP to express their priorities.
+In real applications, these values would be derived from multiple interviews;
+here, we use group-level averages.
+
 
 ```{r Setup priority,  echo=FALSE}
 Priority_points = data.table(NCP = c('Climate', 'Livestock', 'Aesthetic', 'Health risk'),
@@ -92,15 +134,17 @@ Priority_points = data.table(NCP = c('Climate', 'Livestock', 'Aesthetic', 'Healt
 kable(Priority_points, caption = 'Priority points per stakeholder group')
 ```
 
-We need to obtain relative priority scores (scaled between 0 and 1) by scaling the priority to the total number of points given by each group. This is also converted to the long format to facilitate integration with the supply data.
+Priority scores are rescaled between **0 and 1** so that priorities sum to 1 within each group.
+This allows direct comparison and weighting of NCP benefits.
 
 ```{r Relative priority scores, message = FALSE}
-Priority_relative = Priority_points[, list(NCP = NCP,
+
+Priority_long = melt(Priority_points[, list(NCP = NCP,
                                            Farmers = Farmers/(sum(Farmers)),
                                            Foresters = Foresters/(sum(Foresters)),
-                                           Locals = Locals/(sum(Locals)))]
-Priority_long = melt.data.table(Priority_relative, id.vars = 'NCP', variable.name = "Group", value.name = "Priority")
-Priority_relative_plot = dcast(melt(Priority_relative, id.vars = "NCP", variable.name = 'Group'), Group ~ NCP)
+                                           Locals = Locals/(sum(Locals)))],
+                         id.vars = 'NCP', variable.name = "Group", value.name = "Priority")
+
 Priority_long[, NCP := factor(NCP, levels = c('Climate','Livestock','Aesthetic', 'Health risk'))]
 
 ggPriority = ggplot(Priority_long, aes(x = NCP, y = Priority, fill = NCP)) +
@@ -120,9 +164,19 @@ ggPriority
 ```
 
 
-## Supply-benefit/detriment relationships
+## Supply–benefit/detriment relationships
 
-Ideally, supply-benefit relationships should be deducted from quantitative or semi-quantitative surveys and adapted to individual stakeholder groups. Here we provide a function to create examples of SB relationships for standard shapes. If you use your own supply-benefit/detriments relationships, make sure the resulting benefits/detriments are scaled between 0 (no benefit/detriment) and 1 (maximum benefit) or -1 (maximum detriment).
+Ecosystem supply does not translate directly into benefits or detriments.
+Instead, each NCP follows a **supply–benefit (or supply–detriment) relationship**,
+which may be linear, nonlinear, or threshold-based.
+
+Ideally, these relationships are derived from empirical or semi-quantitative data.
+Here, we define generic functional forms to illustrate the method.
+
+All benefits and detriments are scaled between:
+- **–1** (maximum detriment),
+- **0** (no effect),
+- **+1** (maximum benefit).
 
 ```{r Setup SB/D relationshps}
 # This function takes as input:
@@ -131,79 +185,31 @@ Ideally, supply-benefit relationships should be deducted from quantitative or se
 #  • the expected shape of the SB relationship (linear, cubic, with a threshold)
 #. • the theoretical minimum and maximum supply of the single NCP
 #. • (optional) the threshold
-SB_relationship = function(supply_obs, names = NA, shape, supply_min, supply_max, threshold = NA){
-  supply_was_na = FALSE
-          if (all(is.na(supply_obs))){ # If no supply is provided, a sequence is generated between the min and max supply
-            supply_obs = seq(supply_min, supply_max, length.out = 50)
-              supply_was_na = TRUE
-          }
-            if ( (min(supply_obs) < supply_min | max(supply_obs) > supply_max)) {
-              print("Warning: S should be in range (between min and max)")
-            }
 
-           if (!is.na(threshold)){
-             if (threshold <= supply_min | threshold >= supply_max ) {
-              print(
-                "Warning: the threshold should be higher than the minimum and lower than the maximum supply"
-              )}} 
-            if (shape == "linear_benefits") { # E.g. aesthetics follow a linear positive SB relationship
-              benefit_obs = (supply_obs - supply_min)/(supply_max - supply_min)
-            }
-            if (shape == "linear_detriments") { # E.g. health risks follow a linear negative SB relationship
-              benefit_obs = -(supply_obs - supply_min)/(supply_max - supply_min)
-            }
-            if (shape == "threshold_cubic_benefits") {# Production needs to reach a threshold before becoming profitable, then increasing return. Eg: timber production
-               benefit_obs = ifelse(supply_obs < threshold, 0, (supply_obs^3 - supply_min^3)/(supply_max^3 - supply_min^3))
-            }
-            if (shape == "detriments_threshold_benefits") {# E.g. carbon sequestration
-               benefit_obs = ifelse(supply_obs < threshold, (supply_obs - threshold) / (supply_max - threshold), (supply_obs - threshold)/(supply_max- threshold))
-            }
-             return(list(benefit_obs = benefit_obs))
- }
+scale01 <- function(x) x / max(abs(x))
 
-# This function applies SB relationship to a data table, taking as input the data table, NCP names as well as min, max and threshold values for each NCP
-apply_SB = function(DATA, ncp_names, supply_min, supply_max, shapes, thresholds = NA){
- for (ncp in ncp_names){
-   DATA[NCP == ncp,   
-              Benefits := SB_relationship(supply_obs = NCP_supply_realised, supply_min = supply_min[ncp], supply_max = supply_max[ncp],
-                                          shape = shapes[ncp], threshold = thresholds[ncp])]
- }
-  return(DATA)
+SB_relationship <- function(supply, min, max, shape, threshold = NA) {
+if (shape == 'linear_benefits') return((supply - min) / (max - min))
+if (shape == 'linear_detriments') return(-(supply - min) / (max - min))
+if (shape == 'threshold_cubic_benefits')
+return(ifelse(supply < threshold, 0,
+(supply^3 - min^3) / (max^3 - min^3)))
+if (shape == 'detriments_threshold_benefits')
+return((supply - threshold) / (max - threshold))
 }
 
-# This function plot the SB relationships based on given supply values
-plot_SB = function(DATA, ncp_names, supply_min, supply_max, shapes, thresholds, breaks = 100){
-  # Create sequential data
-   SBdata = data.table(NCP = rep(ncp_names, each = breaks))
-   SBdata = SBdata[, NCP_supply_realised := seq(from = supply_min[NCP], to = supply_max[NCP], length.out = breaks), by = NCP]
 
-   apply_SB(SBdata, ncp_names, supply_min, supply_max, shapes, thresholds)
-   SBdata[Benefits >= 0, c('ribbon_max', 'ribbon_min') := list(Benefits, 0)]
-   SBdata[Benefits < 0,  c('ribbon_max', 'ribbon_min') := list(0, Benefits)]
-
-      SBplot = ggplot(SBdata, aes(x = NCP_supply_realised, y = Benefits, fill = Benefits>0, ymax = ribbon_max, ymin = ribbon_min)) + facet_wrap(~NCP, , scales = "free") +
-              geom_ribbon(alpha = 0.3) +
-        scale_fill_manual(values = c('#FDAE61', '#ABDDA4'), labels = c('Detriments', 'Benefits'), name = '')+
-              xlab('Supply') + ylab('Benefit') + theme_bw()
-      
-     # if supply data is provided, calculate corresponding benefits
-  if (!is.null(DATA) & !all(is.na(DATA$NCP_supply_realised))){
-  apply_SB(DATA, ncp_names, supply_min, supply_max, shapes, thresholds)
-  
-  SBplot = SBplot + 
-    geom_segment(data = DATA, aes(x = -Inf, xend = NCP_supply_realised, yend = Benefits, y = Benefits),  inherit.aes = F) +
-    geom_segment(data = DATA, aes(x = NCP_supply_realised, xend = NCP_supply_realised, yend = Benefits, y = -Inf), inherit.aes = F) +xlab('Supply') + ylab('Detriments   -    Benefits')  }
- return(SBplot)
-}
-
-# This function scales values between 0 (min) and 1 (max)
-scale01 = function(x){
-  y = x/abs(max(x))
-}
-          
 ```
 
 # Calculation of netNCP
+
+The netNCP calculation follows five steps:
+
+1. Estimate NCP supply and access  
+2. Convert supply into benefits or detriments  
+3. Adjust supply–benefit relationships under different scenarios  
+4. Weight benefits by stakeholder priorities  
+5. Aggregate weighted benefits into netNCP scores
 
 ### Step 1. NCP supply and access
 
@@ -217,10 +223,10 @@ Supply_NCP = Supply_indicators[, list(LU_type = LU_type,
                                       Aesthetic = (scale01(Aesthetic_flower) + scale01(Aesthetic_diversity))/2,
                                       `Health risk` =  scale01(Health_risk))]
 
-Supply_NCP_mean = melt.data.table(Supply_NCP, id.vars = 'LU_type', value.name = 'NCP_supply_potential', variable.name = 'NCP')
-Supply_NCP_mean[, NCP := factor(NCP, levels = c('Climate','Livestock','Aesthetic', 'Health risk'))]
+Supply_long = melt(Supply_NCP, id.vars = 'LU_type', value.name = 'Supply', variable.name = 'NCP')
+Supply_long[, NCP := factor(NCP, levels = c('Climate','Livestock','Aesthetic', 'Health risk'))]
 
-ggSupply = ggplot(Supply_NCP_mean, aes(x = NCP, y = NCP_supply_potential, fill = NCP)) +
+ggSupply = ggplot(Supply_long, aes(x = NCP, y = Supply, fill = NCP)) +
   geom_col(width = 0.7) +
   scale_fill_brewer(palette = "Oranges", name ='NCP', breaks = c('Climate','Livestock','Aesthetic', 'Health risk')) +
   coord_polar(start = 0.78) + facet_wrap(~LU_type) +
@@ -234,77 +240,59 @@ ggSupply
 
 ```
 
-We combine this with priority data.
-```{r Stakeholder priority}
-NCP_demand_priority = merge.data.table(Supply_NCP_mean, Priority_long, by = 'NCP', allow.cartesian=TRUE)
-```
 
-### Scenarios description
+### Scenarios
 
-We now build our different scenarios of multifunctionality. For each scenario the situation diverge from the baseline scenario by only one element, specified below; the other parameters remain the same.
+We compare seven scenarios. Each differs from the baseline by **one change only**.
 
-In *the baseline situation*, the area is composed of 54% pastures, 36% woodland, and 10% swamp. 
-
-In *scenario 1*, the relative proportion of the two land-use types change (to 36% pastures, 54% woodland).
-
-In *scenario 2*, the analysis accounts for access restriction. Half of the area, including the swamp, is privately owned, which means local residents cannot access the NCP supplied there, except for carbon sequestration, which does not require access. Foresters and farmers can access the whole area. 
-
-In *scenario 3*, subsidies mean that benefits for a given livestock production level increase; the threshold at which the production becomes economically viable decreases.
-
-In *scenario 4*, stakeholder priorities change, and all stakeholders' priorities for climate regulation increase.
-
-In *scenario 5*, the assessment fails to account for the detriments associated with disease vector occurrence.
-
-In *scenario 6*, the analysis accounts for the spatial dimension of supply-benefit relationships: here benefits from aesthetic value are assume to decrease with distance from each stakehodler's residence.
-
+- **Baseline (0):** Current land-use composition (54% pastures, 36% woodland, and 10% swamp).
+- **Scenario 1:** Increased woodland, reduced pasture.  
+- **Scenario 2:** Restricted access for local residents. Half of the area, including the swamp, is privately owned, which means local residents cannot access the NCP supplied there, except for carbon sequestration, which does not require access. Foresters and farmers can access the whole area.   
+- **Scenario 3:** Subsidies increase livestock profitability. Benefits for a given livestock production level increase; the threshold at which the production becomes economically viable decreases.
+- **Scenario 4:** Climate regulation becomes a higher priority for all groups.  
+- **Scenario 5:** Health risks are ignored.  
+- **Scenario 6:** The spatial dimension of supply-benefit relationships is ackowledged: benefits from aesthetics decrease with distance from homes.
 
 #### Baseline situation
 
 ```{r Building land use scenarios}
 #### Creating a large data table with information on all scenarios
-Scenarios = data.table(expand.grid(Group = c('Farmers', 'Foresters', 'Locals'), 
-                                   Scenarios = seq(from = 0, to = 6), 
-                                   LU_type = c('Pasture', 'Woodland', 'Swamp')))
+Scenarios <- CJ(
+Group = c('Farmers', 'Foresters', 'Locals'),
+Scenario = 0:6,
+LU_type = c('Pasture', 'Woodland', 'Swamp')
+)
 
 ## Setting the proportion of each land use in the landscape.
 # For most scenarios this is equal to the baseline situation
-prop_landscape_0 = table(landscape)/100
-Scenarios[Scenarios != 1, 
-          Prop_landscape := ifelse(LU_type == 'Pasture', prop_landscape_0['Pasture'],
-                                                  ifelse(LU_type == 'Woodland', prop_landscape_0['Woodland'],
-                                                                          prop_landscape_0['Swamp'])), by = Group]
+baseline_prop <- table(landscape) / length(landscape)
+Scenarios[, Prop := baseline_prop[LU_type]]
+Scenarios[, Access := Prop]
 ```
 
 #### Adaptation of land use and access for scenarios 1 and 2
 
 ```{r Changing land use and access}
 # For scenario 1, a large part of the pastures are reforested
-Scenarios[Scenarios == 1, Prop_landscape := ifelse(LU_type == 'Pasture', 0.2,
-                                                      ifelse(LU_type == 'Woodland', 0.7,
-                                                                               0.1)), by = Group]
+Scenarios[Scenario == 1,
+          Access := ifelse(LU_type == 'Pasture', 0.2,
+                    ifelse(LU_type == 'Woodland', 0.7, 0.1))]
 
-## Setting the accessible proportion of each land use in the landscape,
-# In most scenarios there is full access
-Scenarios[, Prop_landscape_accessible := Prop_landscape]
 
 # In scenario 2 locals have no access to the swamp and half the remaining area
-Scenarios[Scenarios ==2  & Group == 'Locals', 
-          Prop_landscape_accessible := ifelse(LU_type == 'Swamp', 0,
-                                           Prop_landscape/2)]
+Scenarios[Scenario == 2 & Group == 'Locals',
+          Access := ifelse(LU_type == 'Swamp', 0, Prop / 2)]
+
 ```
 
 We calculate the realised NCP supply, as the total landscape supply (baseline supplied weighted by proportion of each land use) for climate mitigation, restricted to what is accessible for other NCP.
 We then sum the overall NCP supply in the whole landscape, across land uses.
 
 ```{r Realised NCP supply}
-Supply_access_NCP = merge.data.table(Supply_NCP_mean, Scenarios, by = c('LU_type'), allow.cartesian=TRUE)
-
-Supply_access_NCP[NCP == 'Climate', NCP_supply_realised := NCP_supply_potential*Prop_landscape]
-Supply_access_NCP[NCP != 'Climate', NCP_supply_realised := NCP_supply_potential*Prop_landscape_accessible]
-
-
-Supply_realised_landscape = Supply_access_NCP[, list(NCP_supply_realised = sum(NCP_supply_realised)), by = list(NCP, Group, Scenarios)]
+Supply_realised <- merge(Supply_long, Scenarios, by = 'LU_type', allow.cartesian = TRUE)
+Supply_realised[, Realised := ifelse(NCP == 'Climate', Supply * Prop, Supply * Access)]
 ```
+
 
 ### Step 2 and 3. Supply-benefit relationship
 
@@ -313,22 +301,46 @@ The realised supply scores can then be converted into benefits through the suppl
 
 ```{r Applying SB/D relationships}
 # Here we define the parameters to apply SB/D relationships: determine minimal and maximal theoretical values
-ncp_names = c('Climate','Livestock', 'Aesthetic', 'Health risk')
-supply_min = c(Climate = -1, Livestock = 0, Aesthetic = 0, `Health risk` = 0)
-supply_max = c(Climate = 1, Livestock = 1, Aesthetic = 1, `Health risk` = 1)
-shapes =     c(Climate = 'detriments_threshold_benefits', Livestock = 'threshold_cubic_benefits', Aesthetic = 'linear_benefits', `Health risk` = 'linear_detriments')
-thresholds = c(Climate = 0, Livestock = 0.35, Aesthetic = NA, `Health risk` = NA)
+  params <- data.table(
+  NCP = c('Climate','Livestock','Aesthetic','Health risk'),
+  min = c(-1, 0, 0, 0),
+  max = c( 1, 1, 1, 1),
+  shape = c('detriments_threshold_benefits',
+  'threshold_cubic_benefits',
+  'linear_benefits',
+  'linear_detriments'),
+  threshold = c(0, 0.35, NA, NA)
+  )
 
-# Apply the function using these parameters. This adds a column to the Supply_realised_landscape data table.
-apply_SB(Supply_realised_landscape, ncp_names, supply_min, supply_max, shapes, thresholds)
+
+# Apply the function using these parameters.
+Supply_realised <- merge(Supply_realised, params, by = 'NCP')
+Supply_realised[, Benefit := SB_relationship(Realised, min, max, shape, threshold), by = .I]
 ```
 
-We plot the overall SB/D relationships (colored ribbons: green is benefits, red is detriments); the lines indicate actual supply values and corresponding benefits/detriments scores
+As an illustration, e plot the overall SB/D relationships (colored ribbons: green is benefits, red is detriments); the lines indicate actual supply values and corresponding benefits/detriments scores
 
 ```{r Plot SB/D relationships}
-plotSB = plot_SB(Supply_NCP_mean[,  NCP_supply_realised := NCP_supply_potential], ncp_names, supply_min, supply_max, shapes, thresholds) +
-    geom_segment(data = Supply_NCP_mean, aes(x = -Inf, xend = NCP_supply_realised, yend = Benefits, y = Benefits), color = 'grey30', inherit.aes = F) +
-    geom_segment(data = Supply_NCP_mean, aes(x = NCP_supply_realised, xend = NCP_supply_realised, yend = Benefits, y = -Inf),color = 'grey30', inherit.aes = F) +
+
+# Create sequential data for plotting purposes
+SBdata = data.table(NCP = rep(c('Climate','Livestock','Aesthetic', 'Health risk'), each = 100))
+SBdata = merge(SBdata, params, by = 'NCP')
+   
+SBdata[, Realised := seq(from = unique(min), to =  unique(max), length.out = 100), by = NCP]
+
+SBdata[, Benefit := SB_relationship(Realised, min, max, shape, threshold), by = .I]
+   
+SBdata[Benefit >= 0, c('ribbon_max', 'ribbon_min') := list(Benefit, 0)]
+SBdata[Benefit < 0,  c('ribbon_max', 'ribbon_min') := list(0, Benefit)]
+
+# Start plot
+SBplot = ggplot(SBdata, 
+           aes(x = Realised, y = Benefit, fill = Benefit>0, ymax = ribbon_max, ymin = ribbon_min)) + facet_wrap(~NCP, , scales = "free") +
+              geom_ribbon(alpha = 0.3) +
+        scale_fill_manual(values = c('#FDAE61', '#ABDDA4'), labels = c('Detriments', 'Benefits'), name = '')+
+              xlab('Supply') + ylab('Benefit') + theme_bw() +
+    geom_segment(data = Supply_realised[Scenario == 0,], aes(x = -Inf, xend = Realised, yend = Benefit, y = Benefit), color = 'grey30', inherit.aes = F) +
+    geom_segment(data = Supply_realised[Scenario == 0,], aes(x = Realised, xend = Realised, yend = Benefit, y = -Inf),color = 'grey30', inherit.aes = F) +
    theme_classic(base_size = 8) + ylim(-1, 1)+
    theme(
         axis.ticks.x=element_blank(), #remove x axis ticks
@@ -339,32 +351,34 @@ plotSB = plot_SB(Supply_NCP_mean[,  NCP_supply_realised := NCP_supply_potential]
     strip.background = element_rect(colour="NA", fill="NA"),
     legend.position="bottom") + geom_hline(yintercept = 0, size = 0.1)+ geom_vline(xintercept = 0, size = 0.1)+ ggtitle('Supply-benefit relationships')
 
-plotSB
+SBplot
 ```
 
 #### Adaptation of SB relationship for scenario 3
-In scenario 3, subsidies increase the benefits from livestock production
+In scenario 3, subsidies increase the benefits from livestock production.
+
 ```{r Change SB/D relationship for livestock in scenario 3}
-Supply_realised_landscape[Scenarios == 3 & NCP == 'Livestock', Benefits := Benefits + 0.2]
+Supply_realised[Scenario == 3 & NCP == 'Livestock', Benefit := Benefit + 0.2]
 
 ```
 
-#### Adaptation of SB relationship for scenario 6
-In scenario 6, the spatial dimension of SB relationship is added. We need a slightly different approach that takes into account where each stakeholder live and a distance-decay function for benefits.
-Specific decisions on how to standardize distances, resulting weighted benefits, etc should be adapted depending on the context of each study; this is only a theoretical example.
+#### Spatial supply–benefit relationships (Scenario 6).
+In Scenario 6, benefits from aesthetic value depend on distance to each stakeholder’s residence.
+We apply a simple distance-decay function so that nearby landscape elements contribute more strongly.
+
+This example is purely illustrative.
+In applied studies, distance functions and scaling choices should be adapted to the social and ecological context.
+
 
 ```{r Integrate spatial SB/D relationship for aesthetics in scenario 6}
-# First we convert the land use map into supply values
+# First we convert the land use map into supply values. Here, supply is equivalent to benefit as we considered a linear SB relationship.
 supply_aesthetics = Supply_NCP$Aesthetic
 names(supply_aesthetics) = Supply_NCP$LU_type
 landscape_supply = matrix(supply_aesthetics[landscape], nrow = 10, byrow = F)
+landscape_benefit = rast(landscape_supply,  crs="+proj=longlat +datum=WGS84")
 
-# then into benefit values (no change here because it is a linear transformation)
-landscape_benefit = SB_relationship(landscape_supply, supply_min = supply_min['Aesthetic'],supply_max = supply_max['Aesthetic'], shape = shapes['Aesthetic'])[[1]]
-landscape_benefit = rast(landscape_benefit,  crs="+proj=longlat +datum=WGS84")
-
-# then we downweight benefits with increasing distance from people's homes
-landscape_r = rast(landscape, crs="+proj=longlat +datum=WGS84") # Adding crs to measure distance; scale not representative
+# Then we downweight benefits with increasing distance from people's homes
+landscape_r = rast(landscape, crs="+proj=longlat +datum=WGS84") # Adding crs to measure distance; scale not representative!
 homes_v = vect(homes, 'points', geom = c('x', 'y'))
 crs(homes_v) = crs="+proj=longlat +datum=WGS84"
 
@@ -386,10 +400,10 @@ names(list_plots) = c('Distance decay (farmers)','Distance decay (foresters)','D
                       'Resulting benefits (farmers)','Resulting benefits (foresters)','Resulting benefits (locals)')
 plot(list_plots)
 
-# The supply is the mean of the values across the landscape
-Supply_realised_landscape[NCP == "Aesthetic" & Scenarios == 6 & Group == "Farmers", Benefits := mean(values(landscape_benefit_farm))]
-Supply_realised_landscape[NCP == "Aesthetic" & Scenarios == 6 & Group == "Foresters", Benefits := mean(values(landscape_benefit_fore))]
-Supply_realised_landscape[NCP == "Aesthetic" & Scenarios == 6 & Group == "Locals", Benefits := mean(values(landscape_benefit_local))]
+# The supply is the mean of the distance-weighted values across the landscape
+Supply_realised[NCP == "Aesthetic" & Scenario == 6 & Group == "Farmers", Benefit := mean(values(landscape_benefit_farm))]
+Supply_realised[NCP == "Aesthetic" & Scenario == 6 & Group == "Foresters", Benefit := mean(values(landscape_benefit_fore))]
+Supply_realised[NCP == "Aesthetic" & Scenario == 6 & Group == "Locals", Benefit := mean(values(landscape_benefit_local))]
 ```
 
 
@@ -398,59 +412,56 @@ Supply_realised_landscape[NCP == "Aesthetic" & Scenarios == 6 & Group == "Locals
 Now we merge both datasets and calculate weighted benefit scores as benefits x priority.
 
 ```{r Integrate priorities}
-Supply_access_priority = merge.data.table(Priority_long, Supply_realised_landscape, by = c('NCP','Group' ))
+Weighted <- merge(Supply_realised, Priority_long, by = c('NCP','Group'))
+Weighted[, Weighted_score := Benefit * Priority]
 ```
 
 #### Changing priorities dor scenarios 4 and 5
 
-For scenario 4, we do not include detrimental NCP, so we change the priority scores of the health risks to 0 and re-scale the other scores so that they still sum to 1
+For scenario 4, priority for climate regulation increases. For scenario 5, we do not include detrimental NCP, so we change the priority scores of the health risks to 0. In both cases, scores are rescaled to sum to 1.
 
 ```{r Change in priorities}
 ## Scenario 4: all stakeholders prioritise climate regulation more highly
-Supply_access_priority[Scenarios == 4 & NCP == 'Climate', Priority := Priority+0.1]
-Supply_access_priority[Scenarios == 4, Priority := Priority/sum(Priority), by = Group]
+Weighted[Scenario == 4 & NCP == 'Climate', Priority := Priority+0.1]
+Weighted[Scenario == 4, Priority := Priority/sum(Priority), by = Group]
 
 ## Scenario 5: detriments from disease occurence is disregarded
-Supply_access_priority[Scenarios == 5 & NCP == 'Health risk', Priority := 0]
-Supply_access_priority[Scenarios == 5, Priority := Priority/sum(Priority), by = Group]
-
-Supply_access_priority[, Weighted_scores := Benefits * Priority]
+Weighted[Scenario == 5 & NCP == 'Health risk', Priority := 0]
+Weighted[Scenario == 5, Priority := Priority/sum(Priority), by = Group]
 ```
 
 ### Step 5. Calculation of netNCP
 
-Finally we calculate netNCP for each stakeholder group and the whole community
+Finally we calculate netNCP for each stakeholder group.
 
 ```{r Calculate netNCP}
-netNCP_bygroup = Supply_access_priority[, list(netNCP = sum(Weighted_scores)), by = list(Group, Scenarios)]
+Weighted_by_group <- Weighted[, .(Weighted_score = sum(Weighted_score)), by = .(Group, Scenario, NCP)]
+netNCP <- Weighted_by_group[, .(netNCP = sum(Weighted_score)), by = .(Group, Scenario)]
   
-#netNCP_overall = netNCP_bygroup[, list(netNCP = mean(netNCP),
-#                                       equity = 1/sd(netNCP)), by = Scenarios]
-
-ggnetNCP0 =ggplot(Supply_access_priority[Scenarios == 0, ], aes(x = Group, y = Weighted_scores, fill = NCP)) +
- # ggtitle('NetNCP across scenarios and stakeholder groups (full red lines)') +
+# Plot baseline situation
+ggnetNCP_scenario0 =
+  ggplot(Weighted_by_group[Scenario == 0, ], aes(x = Group, y = Weighted_score, fill = NCP)) +
   geom_col(width = 0.8) +
   scale_fill_brewer(palette = "Oranges", name ='NCP', breaks = c('Climate','Livestock','Aesthetic', 'Health risk')) +
-  facet_wrap(~Scenarios, nrow = 1) +
+  facet_wrap(~Scenario, nrow = 1) +
   theme_minimal(base_size = 8) + xlab('') + ylab('netNCP')+
    theme(axis.text.x=element_text(angle = 45, vjust = 0.5),
-         axis.ticks.x=element_blank(), #remove x axis ticks
-         plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+         axis.ticks.x=element_blank(),
+         plot.background = element_rect(fill='transparent', color=NA), 
     legend.position="none",
     axis.line = element_line(colour = "black", linewidth = 0.5),
     panel.spacing = unit(1.5, "lines"),
-   # strip.text.x = element_text(size = 10, color = NA),
     strip.background = element_rect(colour="NA", fill="NA")) +
-     geom_errorbar(data = netNCP_bygroup[Scenarios == 0, ], aes(x = Group, y=netNCP,ymin=netNCP,ymax=netNCP), color = 'darkred', size = 0.4 , inherit.aes = FALSE) +
-  # geom_hline(data = netNCP_overall, aes(yintercept = netNCP), color = 'darkred', size = 0.7, linetype = "longdash") +
+   geom_errorbar(data = netNCP[Scenario == 0, ], aes(x = Group, y=netNCP,ymin=netNCP,ymax=netNCP), color = 'darkred', size = 0.4 , inherit.aes = FALSE) +
   geom_hline(aes(yintercept = 0), color = 'black', size = 0.3)
 
-
-ggnetNCP = ggplot(Supply_access_priority[Scenarios != 0,], aes(x = Group, y = Weighted_scores, fill = NCP)) +
+# Plot all scenarios
+ggnetNCP = 
+  ggplot(Weighted_by_group[Scenario != 0, ], aes(x = Group, y = Weighted_score, fill = NCP)) +
   ggtitle('NetNCP across scenarios and stakeholder groups (full red lines)') +
   geom_col(width = 0.8) +
   scale_fill_brewer(palette = "Oranges", name ='NCP', breaks = c('Climate','Livestock','Aesthetic', 'Health risk')) +
-  facet_wrap(~Scenarios, nrow = 1) +
+  facet_wrap(~Scenario, nrow = 1) +
   theme_minimal(base_size = 8) + xlab('') + ylab('netNCP')+
    theme(axis.text.x=element_text(angle = 45, vjust = 0.5),
          axis.ticks.x=element_blank(), #remove x axis ticks
@@ -459,10 +470,13 @@ ggnetNCP = ggplot(Supply_access_priority[Scenarios != 0,], aes(x = Group, y = We
     axis.line = element_line(colour = "black", linewidth = 0.5),
     panel.spacing = unit(1.5, "lines"),
     strip.background = element_rect(colour="NA", fill="NA")) +
-     geom_errorbar(data = netNCP_bygroup[Scenarios != 0, ], aes(x = Group, y=netNCP,ymin=netNCP,ymax=netNCP), color = 'darkred', size = 0.4 , inherit.aes = FALSE) +
+     geom_errorbar(data = netNCP[Scenario != 0, ], aes(x = Group, y=netNCP,ymin=netNCP,ymax=netNCP), color = 'darkred', size = 0.4 , inherit.aes = FALSE) +
   geom_hline(aes(yintercept = 0), color = 'black', size = 0.3)
 
 ggnetNCP
 ```
 
+# Conclusion
+
+The netNCP framework integrates NCP supply, access, nonlinear benefit relationships, and stakeholder priorities into a single, transparent metric. This tutorial demonstrates how alternative socio-ecosystem scenarios can be compared while explicitly accounting for trade-offs and stakeholder heterogeneity.
 
