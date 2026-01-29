@@ -413,11 +413,9 @@ Now we merge both datasets and calculate weighted benefit scores as benefits x p
 
 ```{r Integrate priorities}
 Weighted <- merge(Supply_realised, Priority_long, by = c('NCP','Group'))
-Weighted[, Weighted_score := Benefit * Priority]
 ```
 
 #### Changing priorities dor scenarios 4 and 5
-
 For scenario 4, priority for climate regulation increases. For scenario 5, we do not include detrimental NCP, so we change the priority scores of the health risks to 0. In both cases, scores are rescaled to sum to 1.
 
 ```{r Change in priorities}
@@ -435,6 +433,9 @@ Weighted[Scenario == 5, Priority := Priority/sum(Priority), by = Group]
 Finally we calculate netNCP for each stakeholder group.
 
 ```{r Calculate netNCP}
+Weighted[, Weighted_score := Benefit * Priority]
+Weighted[, NCP := factor(NCP, levels = c('Climate','Livestock','Aesthetic', 'Health risk'))]
+
 Weighted_by_group <- Weighted[, .(Weighted_score = sum(Weighted_score)), by = .(Group, Scenario, NCP)]
 netNCP <- Weighted_by_group[, .(netNCP = sum(Weighted_score)), by = .(Group, Scenario)]
   
